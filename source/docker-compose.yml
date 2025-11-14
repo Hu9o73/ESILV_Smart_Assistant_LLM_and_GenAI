@@ -1,0 +1,30 @@
+networks:
+  chatakon-network:
+    driver: bridge
+services:
+  chatakon-agentic:
+    build:
+      context: "./services/agentic"
+    container_name: "chatakon-agentic"
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./.env
+    command: ["fastapi", "run", "./app/Agentic.py", "--port", "8001"]
+    networks:
+      - chatakon-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+  chatakon-front:
+    build:
+      context: "./front"
+      args:
+        - VITE_BACKEND_URL=/api
+    container_name: "chatakon-front"
+    ports:
+      - "8080:80"
+    networks:
+     - chatakon-network

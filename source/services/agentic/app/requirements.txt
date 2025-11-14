@@ -1,0 +1,12 @@
+fastapi[standard]==0.119.1
+pydantic==2.12.3
+supabase==2.22.0
+dotenv==0.9.9
+bcrypt==5.0.0
+langchain>=0.3.0,<0.4.0
+langchain-openai>=0.3.0,<0.4.0
+langchain-community>=0.3.0,<0.4.0
+langfuse==2.60.9
+requests==2.32.5
+supabase==2.22.0
+langchain-tavily==0.2.13

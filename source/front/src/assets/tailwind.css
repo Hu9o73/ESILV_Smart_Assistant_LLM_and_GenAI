@@ -1,0 +1,8 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-phisward-primary: #102A43;
+  --color-phisward-secondary: #2C5E8A;
+  --color-phisward-third: #6FA3BF;
+  --color-phisward-fourth: #E8EDEF;
+}
