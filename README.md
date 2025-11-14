@@ -6,13 +6,13 @@
 
 [https://chatakon.fr](https://chatakon.fr)
 
-Chat'akon is an AI concierge dedicated to students of the Pôle Léonard de Vinci. It combines a polished Vue 3 interface with an agentic FastAPI backend powered by LangChain, vector search, IBM watsonx.data and curated web retrieval. The goal: answer questions about schedules, services, and student life with verifiable facts.
+Chat'akon is an AI concierge dedicated to students of the Pôle Léonard de Vinci. It combines a polished Vue 3 interface with an agentic FastAPI backend powered by LangChain, vector search, Supabase Postgres and curated web retrieval. The goal: answer questions about schedules, services, and student life with verifiable facts.
 
 ---
 
 ## Why Chat'akon?
 
-- **Trusted answers** - Embeddings + SQL queries on curated knowledge, backed by watsonx.data.
+- **Trusted answers** - Embeddings + SQL queries on curated knowledge, backed by Supabase Postgres.
 - **Agentic reasoning** - LangChain tools let the bot cross‑reference stored FAQs, fetch details, and fall back to vetted web results.
 - **Human-friendly UX** - Suggestion chips, markdown rendering, and mobile-ready layout crafted with Tailwind.
 - **Observability ready** - Langfuse traces every LLM call and tool execution.
@@ -31,7 +31,7 @@ Chat'akon is an AI concierge dedicated to students of the Pôle Léonard de Vinc
    |        |         |
    |        |         +--> Tavily Search (web fallbacks)
    |        +------------> pgvector (Q/A pairs)
-   +---------------------> IBM watsonx.data (SQL access)
+   +---------------------> Supabase Postgres (SQL access)
 ```
 
 ---
@@ -43,7 +43,7 @@ Chat'akon is an AI concierge dedicated to students of the Pôle Léonard de Vinc
 | `source/front` | Vue 3 + Vite app (Pinia, Tailwind, Font Awesome). |
 | `source/services/agentic` | FastAPI service, LangChain agents, tool implementations. |
 | `source/docker-compose.yml` | Orchestrates the frontend (nginx) and backend containers. |
-| `certification/` | IBM / watsonx / GenAI certificates earned during the hackathon. |
+| `certification/` | GenAI certificates earned during the hackathon. |
 | `demo_video.mp4` & `pitchdeck.pdf` | Demo assets for juries and partners. |
 
 ---
@@ -52,7 +52,7 @@ Chat'akon is an AI concierge dedicated to students of the Pôle Léonard de Vinc
 
 - Node.js 20+ and npm (for the frontend dev server).
 - Python 3.11+ (or Docker) for the FastAPI service.
-- Access keys for OpenAI, Langfuse, Supabase, Tavily and IBM watsonx (see `.env` section).
+- Access keys for OpenAI, Langfuse, Supabase and Tavily (see `.env` section).
 
 ---
 
@@ -74,7 +74,6 @@ The nginx container proxies `/api` calls to the FastAPI service. When deploying,
 
 | Variable | Purpose |
 | --- | --- |
-| `IAM_API_KEY`, `URL`, `PRESTO_URL`, `CRN` | IBM watsonx.data authentication + SQL engine endpoints. |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | LLM used by the LangChain agent (`gpt-4o-mini-2024-07-18` by default). |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST` | Observability/tracing. |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | Access to embeddings (pgvector). |

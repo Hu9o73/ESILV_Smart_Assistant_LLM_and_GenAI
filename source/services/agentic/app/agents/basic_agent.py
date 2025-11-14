@@ -1,26 +1,17 @@
 import asyncio
-import os
 
 from app.agents.agent_base import AgentBase
-from app.services.watsonx_service import run_sql_query
+from app.database.client import get_db
 from langchain.tools.render import render_text_description
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_openai import OpenAIEmbeddings
 from langfuse.decorators import langfuse_context, observe
-from supabase import create_client, Client
-from dotenv import load_dotenv
+
 
 EMBEDDING_COLUMN = "title_embedding"
 TOP_K = 40
-
-load_dotenv()
-
-SUPABASE_URL=os.getenv("SUPABASE_URL")
-SUPABASE_KEY=os.getenv("SUPABASE_SERVICE_KEY")
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 class BasicAgent(AgentBase):
@@ -36,6 +27,7 @@ class BasicAgent(AgentBase):
             To get answers to those question, you must use as well user the get_question_detail_by_id tool with the ids of the questions you find interesting.
             This tool does not provide answers, only questions.
             """
+            supabase = get_db()
             # Compute query embedding asynchronously
             user_embedding = await asyncio.to_thread(
                 self._embeddings.embed_query, reformulated_user_query
@@ -64,9 +56,17 @@ class BasicAgent(AgentBase):
             You can fetch question ids using the tool get_relevant_question_titles.
             This tool provides answers.
             """
-            return await run_sql_query(
-                f"SELECT Title, Content FROM supa_pg_db_catalog.public.ai_data WHERE id = CAST('{question_id}' AS uuid)"
-            )
+            supabase = get_db()
+            response = supabase.table("ai_data").select("Title, Content").eq("id", question_id).execute()
+
+            if not response.data:
+                return [["Title", "Content"]]
+
+            matrix = [["Title", "Content"]]
+            for row in response.data:
+                matrix.append([row["Title"], row["Content"]])
+
+            return matrix
 
         @tool
         async def web_search(query: str):
