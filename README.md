@@ -43,8 +43,6 @@ Chat'akon is an AI concierge dedicated to students of the Pôle Léonard de Vinc
 | `source/front` | Vue 3 + Vite app (Pinia, Tailwind, Font Awesome). |
 | `source/services/agentic` | FastAPI service, LangChain agents, tool implementations. |
 | `source/docker-compose.yml` | Orchestrates the frontend (nginx) and backend containers. |
-| `certification/` | GenAI certificates earned during the hackathon. |
-| `demo_video.mp4` & `pitchdeck.pdf` | Demo assets for juries and partners. |
 
 ---
 
@@ -83,46 +81,11 @@ The nginx container proxies `/api` calls to the FastAPI service. When deploying,
 
 ---
 
-## API Reference
-
-`POST /message`
-Body parameters:
-- `message` *(string, ≤500 chars)* – the user prompt.
-- `password` *(string)* - must match the `PASSWORD` env var.
-
-Response:
-```jsonc
-{
-  "message": "Markdown answer rendered in the UI",
-  "created_at": "2024-09-26T20:14:55.834Z"
-}
-```
-
-Example call:
-
-```bash
-curl -X POST "http://localhost:8001/message" \
-  -H "Content-Type: application/json" \
-  -d '{"message":"Quels sont les horaires du Learning Center ?", "password":"<secret>"}'
-```
-
-Validation guards prevent prompts longer than 500 characters and reject wrong passwords with HTTP 400.
-
----
-
 ## Frontend Notes
 
 - Authentication is a lightweight gate: users enter the shared password once per session.
 - Suggestions (`suggestionChips` in `HomeView.vue`) offer one-click starter topics.
 - Responses render with `marked` + `DOMPurify`, enabling links, lists, and inline code safely.
 - Conversations persist locally until "Nouvelle discussion" resets the state.
-
----
-
-## Resources
-
-- Demo video: `demo_video.mp4`
-- Pitch deck: `pitchdeck.pdf`
-- Certifications: `certification/`
 
 ---
