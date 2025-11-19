@@ -92,6 +92,20 @@
                     class="space-y-3 whitespace-pre-wrap break-words text-sm leading-relaxed [&_a]:text-sky-600 [&_a]:underline [&_code]:rounded [&_code]:bg-slate-200/70 [&_code]:px-1 [&_code]:py-0.5 [&_strong]:text-slate-900 [&_ul]:ml-4 [&_ul]:list-disc [&_ol]:ml-4 [&_ol]:list-decimal"
                     v-html="renderMarkdown(message.content)"
                   ></div>
+                  <div
+                    v-if="message.role === 'assistant' && message.meta"
+                    class="mt-3 space-y-1 text-[11px] leading-relaxed text-slate-400"
+                  >
+                    <p v-if="message.meta.status === 'fallback'" class="text-rose-500">
+                      Cette réponse n'a pas pu être validée automatiquement.
+                      <span v-if="message.meta.verifierFeedback">
+                        Motif : {{ message.meta.verifierFeedback }}
+                      </span>
+                    </p>
+                    <p v-else-if="message.meta.attempts > 1">
+                      Validée après {{ message.meta.attempts }} tentatives.
+                    </p>
+                  </div>
                   <span class="mt-3 block text-[11px] uppercase tracking-[0.25em] text-slate-400/90">
                     {{ formatTimestamp(message.createdAt) }}
                   </span>
@@ -107,7 +121,7 @@
                   <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400/70 opacity-75"></span>
                   <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-sky-400"></span>
                 </span>
-                Réflexion en cours...
+                {{ jobStatusLabel }}
               </div>
             </div>
           </div>
@@ -152,7 +166,7 @@
 </template>
 
 <script setup>
-import { nextTick, ref, watch, onMounted } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import SuperLogo from '@/assets/logos/logo.png'
@@ -175,11 +189,9 @@ const validatePassword = () => {
 
 // ============================
 
-const fallbackOrigin =
-  typeof window !== 'undefined' && window.location.origin !== 'null' ? window.location.origin : ''
-
 const rawBackendUrl = (import.meta.env.VITE_BACKEND_URL ?? '').trim()
 const normalizedBackendUrl = rawBackendUrl.replace(/\/+$/, '')
+const RELATIVE_API_BASE = '/api'
 
 let backendBase = ''
 
@@ -195,8 +207,8 @@ if (normalizedBackendUrl) {
   }
 }
 
-if (!backendBase && fallbackOrigin) {
-  backendBase = fallbackOrigin.replace(/\/+$/, '')
+if (!backendBase) {
+  backendBase = RELATIVE_API_BASE
 }
 
 const chatContainer = ref(null)
@@ -204,12 +216,49 @@ const messageInput = ref(null)
 const newMessage = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
+const activeJobStatus = ref(null)
+const jobStatusLabel = computed(() => {
+  if (activeJobStatus.value === JOB_STATUS.QUEUED) {
+    return "Message en file d'attente..."
+  }
+  return 'Réflexion en cours...'
+})
 
 const suggestionChips = [
   'Quels sont les prochains événements associatifs ?',
   'Comment réserver une salle de travail au campus ?',
   'Qui contacter pour une question de scolarité ?'
 ]
+
+const JOB_POLL_INTERVAL_MS = 1500
+const MAX_POLL_DURATION_MS = 120000
+
+const JOB_STATUS = Object.freeze({
+  QUEUED: 'queued',
+  PROCESSING: 'processing',
+  COMPLETED: 'completed',
+  ERROR: 'error'
+})
+
+const buildAssistantMeta = (payload = {}) => {
+  const status = typeof payload.status === 'string' ? payload.status : 'approved'
+  const attempts = Number.isFinite(Number(payload.attempts)) ? Number(payload.attempts) : 1
+  const reformulatedQuery =
+    typeof payload.reformulated_query === 'string' && payload.reformulated_query.trim() !== ''
+      ? payload.reformulated_query
+      : null
+  const verifierFeedback =
+    typeof payload.verifier_feedback === 'string' && payload.verifier_feedback.trim() !== ''
+      ? payload.verifier_feedback
+      : null
+
+  return {
+    status,
+    attempts,
+    reformulatedQuery,
+    verifierFeedback
+  }
+}
 
 const createId = (prefix) => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -243,14 +292,97 @@ const scrollToBottom = () => nextTick(() => {
 watch(conversation, scrollToBottom, { deep: true })
 
 // === 🔒 Modified to include password ===
-const buildEndpointUrl = (messageContent) => {
+const buildJobCreationUrl = (messageContent) => {
   const search = new URLSearchParams({ message: messageContent, password: password.value })
   return backendBase ? `${backendBase}/message?${search.toString()}` : `/message?${search.toString()}`
 }
+
+const buildJobStatusUrl = (jobId) => {
+  const search = new URLSearchParams({ password: password.value })
+  return backendBase ? `${backendBase}/message/${jobId}?${search.toString()}` : `/message/${jobId}?${search.toString()}`
+}
 // ========================================
 
-const renderMarkdown = (rawText) => DOMPurify.sanitize(marked.parse(typeof rawText === 'string' ? rawText : '', { breaks: true }))
+const renderMarkdown = (rawText) =>
+  DOMPurify.sanitize(marked.parse(typeof rawText === 'string' ? rawText : '', { breaks: true }))
 const appendMessage = (payload) => conversation.value.push(payload)
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const requestJson = async (url, options = {}, defaultErrorMessage = 'Une erreur est survenue.') => {
+  let response
+
+  try {
+    response = await fetch(url, options)
+  } catch (networkError) {
+    console.error('[home-view] network error:', networkError)
+    throw new Error(defaultErrorMessage)
+  }
+
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(payload?.detail ?? payload?.error ?? defaultErrorMessage)
+  }
+
+  return payload
+}
+
+const queueMessageJob = async (messageContent) => {
+  const payload = await requestJson(
+    buildJobCreationUrl(messageContent),
+    { method: 'POST' },
+    "Impossible de mettre en file d'attente votre requête, merci de réessayer."
+  )
+
+  const jobId = payload?.job_id
+  if (!jobId) {
+    throw new Error('Réponse invalide du serveur : identifiant de job manquant.')
+  }
+
+  return jobId
+}
+
+const pollJobUntilComplete = async (jobId, onStatusChange = () => {}) => {
+  const deadline = Date.now() + MAX_POLL_DURATION_MS
+  let lastKnownStatus = null
+
+  while (Date.now() < deadline) {
+    const payload = await requestJson(
+      buildJobStatusUrl(jobId),
+      {},
+      "Impossible de récupérer l'état du traitement."
+    )
+
+    const currentStatus = payload?.status ?? null
+    if (currentStatus && currentStatus !== lastKnownStatus && typeof onStatusChange === 'function') {
+      onStatusChange(currentStatus)
+    }
+    lastKnownStatus = currentStatus
+
+    if (currentStatus === JOB_STATUS.COMPLETED) {
+      return payload
+    }
+
+    if (currentStatus === JOB_STATUS.ERROR) {
+      throw new Error(payload?.error ?? 'La génération a échoué, veuillez réessayer.')
+    }
+
+    if (currentStatus === JOB_STATUS.QUEUED || currentStatus === JOB_STATUS.PROCESSING) {
+      await wait(JOB_POLL_INTERVAL_MS)
+      continue
+    }
+
+    throw new Error('Réponse inattendue du serveur, merci de réessayer.')
+  }
+
+  const timeoutMessage =
+    lastKnownStatus === JOB_STATUS.QUEUED
+      ? "La file d'attente est temporairement saturée, merci de réessayer dans un instant."
+      : "Le délai d'attente a été dépassé, merci de réessayer."
+
+  throw new Error(timeoutMessage)
+}
 
 const applySuggestion = (prompt) => {
   newMessage.value = prompt
@@ -287,18 +419,34 @@ const sendMessage = async () => {
   newMessage.value = ''
   errorMessage.value = ''
   isLoading.value = true
+  activeJobStatus.value = JOB_STATUS.QUEUED
 
   try {
-    const response = await fetch(buildEndpointUrl(trimmedMessage), { method: 'POST' })
-    const payload = await response.json().catch(() => ({}))
+    const jobId = await queueMessageJob(trimmedMessage)
+    const jobResult = await pollJobUntilComplete(jobId, (status) => {
+      activeJobStatus.value = status
+    })
 
-    if (!response.ok) throw new Error(payload?.detail ?? 'Unable to get a reply right now.')
+    let assistantMessage = jobResult?.message ?? null
+    if (assistantMessage && typeof assistantMessage === 'string') {
+      assistantMessage = {
+        message: assistantMessage,
+        created_at: new Date().toISOString(),
+        status: 'approved',
+        attempts: jobResult?.attempts ?? 1
+      }
+    }
+
+    if (!assistantMessage || !assistantMessage.message) {
+      throw new Error('Le serveur a terminé sans réponse valide.')
+    }
 
     appendMessage({
       id: createId('assistant'),
       role: 'assistant',
-      content: payload?.message ?? 'I could not generate a response, please try again.',
-      createdAt: payload?.created_at ?? new Date().toISOString()
+      content: assistantMessage?.message ?? 'I could not generate a response, please try again.',
+      createdAt: assistantMessage?.created_at ?? new Date().toISOString(),
+      meta: buildAssistantMeta(assistantMessage ?? {})
     })
   } catch (error) {
     errorMessage.value = error.message ?? 'Something went wrong while contacting the agent.'
@@ -306,10 +454,16 @@ const sendMessage = async () => {
       id: createId('assistant'),
       role: 'assistant',
       content: `⚠️ ${errorMessage.value}`,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      meta: buildAssistantMeta({
+        status: 'error',
+        attempts: 0,
+        verifier_feedback: errorMessage.value
+      })
     })
   } finally {
     isLoading.value = false
+    activeJobStatus.value = null
     nextTick(() => messageInput.value?.focus())
   }
 }
