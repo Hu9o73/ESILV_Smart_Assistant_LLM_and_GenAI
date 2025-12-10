@@ -22,9 +22,15 @@ services:
     build:
       context: "./front"
       args:
-        - VITE_BACKEND_URL=/api
+        - NEXT_PUBLIC_BACKEND_URL=/api
+        - BACKEND_URL=http://chatakon-agentic:8001
     container_name: "chatakon-front"
     ports:
-      - "8080:80"
+      - "8080:3000"
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=/api
+      - BACKEND_URL=http://chatakon-agentic:8001
+    depends_on:
+      - chatakon-agentic
     networks:
      - chatakon-network
