@@ -21,16 +21,15 @@ services:
   chatakon-front:
     build:
       context: "./front"
-      args:
-        - NEXT_PUBLIC_BACKEND_URL=/api
-        - BACKEND_URL=http://chatakon-agentic:8001
     container_name: "chatakon-front"
     ports:
       - "8080:3000"
+      - "8000:8000"
     environment:
-      - NEXT_PUBLIC_BACKEND_URL=/api
       - BACKEND_URL=http://chatakon-agentic:8001
+      - REFLEX_API_URL=http://localhost:8000
     depends_on:
       - chatakon-agentic
     networks:
      - chatakon-network
+    command: ["reflex", "run", "--env", "prod"]
