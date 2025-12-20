@@ -24,7 +24,7 @@ services:
       - "8091:3000"
       - "8010:8000"
     environment:
-      - REFLEX_API_URL=http://localhost:8010
+      - REFLEX_API_URL=https://chatakon.fr
     depends_on:
       - chatakon-agentic
     networks:
