@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode
+from rxconfig import config
 
 import httpx
 import reflex as rx
@@ -21,18 +22,18 @@ JOB_STATUS = {
 
 JOB_POLL_INTERVAL_S = 1.5
 MAX_POLL_DURATION_S = 120
-DEFAULT_BACKEND_URL = "http://localhost:8001"
+BACKEND_URL = config.api_url
 
 
 def normalize_backend_base(raw: Optional[str]) -> str:
     if not raw:
-        return DEFAULT_BACKEND_URL
+        return BACKEND_URL
     trimmed = raw.strip().rstrip("/")
     if not trimmed:
-        return DEFAULT_BACKEND_URL
+        return BACKEND_URL
     if trimmed.startswith("http://") or trimmed.startswith("https://"):
         return trimmed
-    return DEFAULT_BACKEND_URL
+    return BACKEND_URL
 
 
 def now_iso() -> str:
@@ -155,7 +156,7 @@ class State(rx.State):
         return payload if isinstance(payload, dict) else {}
 
     def backend_base(self) -> str:
-        raw = os.getenv("BACKEND_URL", DEFAULT_BACKEND_URL)
+        raw = BACKEND_URL
         return normalize_backend_base(raw)
 
     def build_job_creation_url(self, message_content: str) -> str:
