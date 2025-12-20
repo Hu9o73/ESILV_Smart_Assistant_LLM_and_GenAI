@@ -22,18 +22,7 @@ JOB_STATUS = {
 
 JOB_POLL_INTERVAL_S = 1.5
 MAX_POLL_DURATION_S = 120
-BACKEND_URL = config.api_url
-
-
-def normalize_backend_base(raw: Optional[str]) -> str:
-    if not raw:
-        return BACKEND_URL
-    trimmed = raw.strip().rstrip("/")
-    if not trimmed:
-        return BACKEND_URL
-    if trimmed.startswith("http://") or trimmed.startswith("https://"):
-        return trimmed
-    return BACKEND_URL
+BACKEND_URL = config.agentic_api_url
 
 
 def now_iso() -> str:
@@ -156,8 +145,7 @@ class State(rx.State):
         return payload if isinstance(payload, dict) else {}
 
     def backend_base(self) -> str:
-        raw = BACKEND_URL
-        return normalize_backend_base(raw)
+        return BACKEND_URL
 
     def build_job_creation_url(self, message_content: str) -> str:
         query = urlencode({"message": message_content, "password": self.password})
